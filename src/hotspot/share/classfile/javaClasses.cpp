@@ -2557,11 +2557,11 @@ Handle java_lang_Throwable::get_cause_with_stack_trace(Handle throwable, TRAPS) 
 
   JavaValue result(T_ARRAY);
   JavaCalls::call_virtual(&result, throwable,
-                          vmClasses::Throwable_klass(),
+                          throwable->klass(),
                           vmSymbols::getStackTrace_name(),
                           vmSymbols::getStackTrace_signature(),
                           CHECK_NH);
-  Handle stack_trace(THREAD, result.get_oop());
+  Handle stack_trace(THREAD, (oop) result.get_jobject());
   assert(stack_trace->is_objArray(), "Should be an array");
 
   // Throw ExceptionInInitializerError as the cause with this exception in
@@ -2572,7 +2572,7 @@ Handle java_lang_Throwable::get_cause_with_stack_trace(Handle throwable, TRAPS) 
   ResourceMark rm(THREAD);
   stringStream st;
   st.print("Exception %s%s ", throwable()->klass()->name()->as_klass_external_name(),
-             message == nullptr ? "" : ":");
+             message == NULL ? "" : ":");
   if (message == NULL) {
     st.print("[in thread \"%s\"]", THREAD->name());
   } else {
@@ -2592,37 +2592,6 @@ Handle java_lang_Throwable::get_cause_with_stack_trace(Handle throwable, TRAPS) 
   // Clear backtrace because the stacktrace should be used instead.
   set_backtrace(h_cause(), NULL);
   return h_cause;
-}
-
-bool java_lang_Throwable::get_top_method_and_bci(oop throwable, Method** method, int* bci) {
-  JavaThread* current = JavaThread::current();
-  objArrayHandle result(current, objArrayOop(backtrace(throwable)));
-  BacktraceIterator iter(result, current);
-  // No backtrace available.
-  if (!iter.repeat()) return false;
-
-  // If the exception happened in a frame that has been hidden, i.e.,
-  // omitted from the back trace, we can not compute the message.
-  oop hidden = ((objArrayOop)backtrace(throwable))->obj_at(trace_hidden_offset);
-  if (hidden != NULL) {
-    return false;
-  }
-
-  // Get first backtrace element.
-  BacktraceElement bte = iter.next(current);
-
-  InstanceKlass* holder = InstanceKlass::cast(java_lang_Class::as_Klass(bte._mirror()));
-  assert(holder != NULL, "first element should be non-null");
-  Method* m = holder->method_with_orig_idnum(bte._method_id, bte._version);
-
-  // Original version is no longer available.
-  if (m == NULL || !version_matches(m, bte._version)) {
-    return false;
-  }
-
-  *method = m;
-  *bci = bte._bci;
-  return true;
 }
 
 oop java_lang_StackTraceElement::create(const methodHandle& method, int bci, TRAPS) {
