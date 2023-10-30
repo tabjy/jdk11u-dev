@@ -2549,6 +2549,82 @@ void java_lang_Throwable::get_stack_trace_elements(Handle throwable,
   }
 }
 
+Handle java_lang_Throwable::get_cause_with_stack_trace(Handle throwable, TRAPS) {
+  // Call to JVM to fill in the stack trace and clear declaringClassObject to
+  // not keep classes alive in the stack trace.
+  // call this:  public StackTraceElement[] getStackTrace()
+  assert(throwable.not_null(), "shouldn't be");
+
+  JavaValue result(T_ARRAY);
+  JavaCalls::call_virtual(&result, throwable,
+                          vmClasses::Throwable_klass(),
+                          vmSymbols::getStackTrace_name(),
+                          vmSymbols::getStackTrace_signature(),
+                          CHECK_NH);
+  Handle stack_trace(THREAD, result.get_oop());
+  assert(stack_trace->is_objArray(), "Should be an array");
+
+  // Throw ExceptionInInitializerError as the cause with this exception in
+  // the message and stack trace.
+
+  // Now create the message with the original exception and thread name.
+  Symbol* message = java_lang_Throwable::detail_message(throwable());
+  ResourceMark rm(THREAD);
+  stringStream st;
+  st.print("Exception %s%s ", throwable()->klass()->name()->as_klass_external_name(),
+             message == nullptr ? "" : ":");
+  if (message == NULL) {
+    st.print("[in thread \"%s\"]", THREAD->name());
+  } else {
+    st.print("%s [in thread \"%s\"]", message->as_C_string(), THREAD->name());
+  }
+
+  Symbol* exception_name = vmSymbols::java_lang_ExceptionInInitializerError();
+  Handle h_cause = Exceptions::new_exception(THREAD, exception_name, st.as_string());
+
+  // If new_exception returns a different exception while creating the exception, return null.
+  if (h_cause->klass()->name() != exception_name) {
+    log_info(class, init)("Exception thrown while saving initialization exception %s",
+                          h_cause->klass()->external_name());
+    return Handle();
+  }
+  java_lang_Throwable::set_stacktrace(h_cause(), stack_trace());
+  // Clear backtrace because the stacktrace should be used instead.
+  set_backtrace(h_cause(), NULL);
+  return h_cause;
+}
+
+bool java_lang_Throwable::get_top_method_and_bci(oop throwable, Method** method, int* bci) {
+  JavaThread* current = JavaThread::current();
+  objArrayHandle result(current, objArrayOop(backtrace(throwable)));
+  BacktraceIterator iter(result, current);
+  // No backtrace available.
+  if (!iter.repeat()) return false;
+
+  // If the exception happened in a frame that has been hidden, i.e.,
+  // omitted from the back trace, we can not compute the message.
+  oop hidden = ((objArrayOop)backtrace(throwable))->obj_at(trace_hidden_offset);
+  if (hidden != NULL) {
+    return false;
+  }
+
+  // Get first backtrace element.
+  BacktraceElement bte = iter.next(current);
+
+  InstanceKlass* holder = InstanceKlass::cast(java_lang_Class::as_Klass(bte._mirror()));
+  assert(holder != NULL, "first element should be non-null");
+  Method* m = holder->method_with_orig_idnum(bte._method_id, bte._version);
+
+  // Original version is no longer available.
+  if (m == NULL || !version_matches(m, bte._version)) {
+    return false;
+  }
+
+  *method = m;
+  *bci = bte._bci;
+  return true;
+}
+
 oop java_lang_StackTraceElement::create(const methodHandle& method, int bci, TRAPS) {
   // Allocate java.lang.StackTraceElement instance
   InstanceKlass* k = SystemDictionary::StackTraceElement_klass();

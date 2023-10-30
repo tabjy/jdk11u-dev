@@ -343,6 +343,7 @@
   template(class_initializer_name,                    "<clinit>")                                 \
   template(println_name,                              "println")                                  \
   template(printStackTrace_name,                      "printStackTrace")                          \
+  template(getStackTrace_name,                        "getStackTrace")                            \
   template(main_name,                                 "main")                                     \
   template(name_name,                                 "name")                                     \
   template(priority_name,                             "priority")                                 \
@@ -553,6 +554,7 @@
   template(int_String_signature,                      "(I)Ljava/lang/String;")                                    \
   template(boolean_boolean_int_signature,             "(ZZ)I")                                                    \
   template(codesource_permissioncollection_signature, "(Ljava/security/CodeSource;Ljava/security/PermissionCollection;)V") \
+  template(getStackTrace_signature,                    "()[Ljava/lang/StackTraceElement;")                        \
   /* signature symbols needed by intrinsics */                                                                    \
   VM_INTRINSICS_DO(VM_INTRINSIC_IGNORE, VM_SYMBOL_IGNORE, VM_SYMBOL_IGNORE, template, VM_ALIAS_IGNORE)            \
                                                                                                                   \
