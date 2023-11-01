@@ -889,8 +889,13 @@ void InstanceKlass::initialize_super_interfaces(TRAPS) {
   }
 }
 
-ResourceHashtable<const InstanceKlass*, OopHandle, 107, ResourceObj::C_HEAP, mtClass>
-      _initialization_error_table;
+ResourceHashtable<
+    const InstanceKlass*, OopHandle,
+    primitive_hash<const InstanceKlass*>,
+    primitive_equals<const InstanceKlass*>,
+    107,
+    ResourceObj::C_HEAP,
+    mtClass> _initialization_error_table;
 
 void InstanceKlass::add_initialization_error(JavaThread* current, Handle exception) {
   // Create the same exception with a message indicating the thread name,
@@ -904,19 +909,26 @@ void InstanceKlass::add_initialization_error(JavaThread* current, Handle excepti
     return;
   }
 
-  MutexLocker ml(THREAD, ClassInitError_lock);
-  OopHandle elem = OopHandle(Universe::vm_global(), cause());
+  MutexLocker ml(ClassInitError_lock, THREAD);
+  oop theCause = cause(); // FIXME: leaky!
+  OopHandle elem = OopHandle(&theCause);
   bool created = false;
-  _initialization_error_table.put_if_absent(this, elem, &created);
+
+  // _initialization_error_table.put_if_absent(this, elem, &created);
+  if (!_initialization_error_table.contains(this)) {
+      _initialization_error_table.put(this, elem);
+      created = true;
+  }
+
   assert(created, "Initialization is single threaded");
   ResourceMark rm(THREAD);
   log_trace(class, init)("Initialization error added for class %s", external_name());
 }
 
 oop InstanceKlass::get_initialization_error(JavaThread* current) {
-  MutexLocker ml(current, ClassInitError_lock);
+  MutexLocker ml(ClassInitError_lock, current);
   OopHandle* h = _initialization_error_table.get(this);
-  return (h != nullptr) ? h->resolve() : nullptr;
+  return (h != NULL) ? h->resolve() : NULL;
 }
 
 // Need to remove entries for unloaded classes.
@@ -924,7 +936,8 @@ void InstanceKlass::clean_initialization_error_table() {
   struct InitErrorTableCleaner {
     bool do_entry(const InstanceKlass* ik, OopHandle h) {
       if (!ik->is_loader_alive()) {
-        h.release(Universe::vm_global());
+          // FIXME: memory leak!
+//        h.release(SystemDictionary::vm_global_oop_storage());
         return true;
       } else {
         return false;
@@ -934,7 +947,7 @@ void InstanceKlass::clean_initialization_error_table() {
 
   MutexLocker ml(ClassInitError_lock);
   InitErrorTableCleaner cleaner;
-  _initialization_error_table.unlink(&cleaner);
+//  _initialization_error_table.unlink(&cleaner); // FIXME: leaky!
 }
 
 void InstanceKlass::initialize_impl(TRAPS) {
