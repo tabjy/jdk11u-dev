@@ -1295,8 +1295,8 @@ private:
   // Returns the array class with this class as element type
   Klass* array_klass_impl(bool or_null, TRAPS);
 
-  void add_initialization_error(JavaThread* current, Handle exception);
-  oop get_initialization_error(JavaThread* current);
+  void add_initialization_error(Thread* current, Handle exception);
+  oop get_initialization_error(Thread* current);
 
   // find a local method (returns NULL if not found)
   Method* find_method_impl(const Symbol* name,

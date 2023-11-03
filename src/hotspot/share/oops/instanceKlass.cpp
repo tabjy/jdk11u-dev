@@ -897,12 +897,12 @@ ResourceHashtable<
     ResourceObj::C_HEAP,
     mtClass> _initialization_error_table;
 
-void InstanceKlass::add_initialization_error(JavaThread* current, Handle exception) {
+void InstanceKlass::add_initialization_error(Thread* current, Handle exception) {
   // Create the same exception with a message indicating the thread name,
   // and the StackTraceElements.
   // If the initialization error is OOM, this might not work, but if GC kicks in
   // this would be still be helpful.
-  JavaThread* THREAD = current;
+  Thread* THREAD = current;
   Handle cause = java_lang_Throwable::get_cause_with_stack_trace(exception, THREAD);
   if (HAS_PENDING_EXCEPTION || cause.is_null()) {
     CLEAR_PENDING_EXCEPTION;
@@ -925,7 +925,7 @@ void InstanceKlass::add_initialization_error(JavaThread* current, Handle excepti
   log_trace(class, init)("Initialization error added for class %s", external_name());
 }
 
-oop InstanceKlass::get_initialization_error(JavaThread* current) {
+oop InstanceKlass::get_initialization_error(Thread* current) {
   MutexLocker ml(ClassInitError_lock, current);
   OopHandle* h = _initialization_error_table.get(this);
   return (h != NULL) ? h->resolve() : NULL;
