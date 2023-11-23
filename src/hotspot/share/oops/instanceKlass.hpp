@@ -1278,6 +1278,8 @@ public:
   // cannot lock it (like the mirror).
   // It has to be an object not a Mutex because it's held through java calls.
   oop init_lock() const;
+
+  static void clean_initialization_error_table();
 private:
   void fence_and_clear_init_lock();
 
@@ -1292,6 +1294,9 @@ private:
 
   // Returns the array class with this class as element type
   Klass* array_klass_impl(bool or_null, TRAPS);
+
+  void add_initialization_error(Thread* current, Handle exception);
+  oop get_initialization_error(Thread* current);
 
   // find a local method (returns NULL if not found)
   Method* find_method_impl(const Symbol* name,
